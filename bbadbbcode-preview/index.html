@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BBCode Preview</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 200px; }
+    #preview { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+
+<textarea id="input">
+[ul][li]Hello[/li][li][link]This stays visible[/link][/li][/ul]
+</textarea>
+
+<div id="preview"></div>
+
+<script>
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderBBCode(text) {
+  let safe = escapeHtml(text);
+
+  // Only support ul/li
+  return safe
+    .replace(/\[ul\]/gi, "<ul>")
+    .replace(/\[\/ul\]/gi, "</ul>")
+    .replace(/\[li\]/gi, "<li>")
+    .replace(/\[\/li\]/gi, "</li>");
+}
+
+const input = document.getElementById("input");
+const preview = document.getElementById("preview");
+
+function update() {
+  preview.innerHTML = renderBBCode(input.value);
+}
+
+input.addEventListener("input", update);
+update();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>German Text Fixer</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 20px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    .output {
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 300px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    .highlight {
+      background: yellow;
+    }
+
+    .buttons {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+		.highlight-yellow {
+			background: yellow;
+		}
+		.highlight-blue {
+			background: #b9e5ff; /* light blue */
+		}
+		.highlight-orange {
+			background: #ffd9b3;
+		}
+  </style>
+</head>
+<body>
+
+<h2>German Text Fixer</h2>
+
+<div class="container">
+  <textarea id="input" placeholder="Input text…"></textarea>
+  <div id="output" class="output"></div>
+</div>
+
+<div class="buttons">
+  <button onclick="copyPlain()">Copy output (plain)</button>
+  <button onclick="copyDoubleNewlines()">Copy output (double newlines)</button>
+</div>
+
+<script>
+
+/* HELPERS */
+
+function buildUnitRegex(units) {
+  const escaped = units
+    .map(u => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .sort((a, b) => b.length - a.length);
+
+  return new RegExp(
+    `(\\d[\\d.,]*)\\s*(${escaped.join("|")})(?![A-Za-zÄÖÜäöüß])`,
+    "g"
+  );
+}
+
+function highlight(text, className) {
+  return '<span class="' + className + '">' + escapeHTML(text) + '</span>';
+}
+
+
+/* HELPERS END */
+
+/*
+====================================================================
+UNIT / CURRENCY WHITELIST
+====================================================================
+
+Only these tokens will be treated as units or currencies.
+Anything not listed here will NEVER be modified.
+
+Rules:
+- Case-sensitive by default
+- Prefer canonical forms (MB not mb, USD not usd)
+- Order does not matter
+- Add new entries as they become common in your corpus
+
+Examples to ADD later:
+- "kWh"
+- "ms"
+- "km"
+- "EUR"
+====================================================================
+*/
+
+const UNITS_AND_CURRENCIES = [
+  // currencies
+  "€",
+  "USD",
+  "EUR",
+  "GBP",
+  "CHF",
+  "JPY",
+
+  // data / tech
+  "MB",
+  "GB",
+  "TB",
+	"KMU",
+
+  // generic units
+  "kg",
+  "g",
+  "ms",
+  "s",
+  "min",
+  "h",
+	"%",
+	"m²",
+	"mg/kg",
+	"°C",
+	"°F",
+	"SEER2",
+	"HSPF2",
+	"dB",
+	"dBA"
+];
+
+const NUMBER_MULTIPLIERS = [
+  "Mrd.",
+  "Mio.",
+  "Tsd."
+];
+
+/*
+====================================================================
+FIX PIPELINE – EXTENDABLE DESIGN
+====================================================================
+
+Each fix is an object with the following fields:
+
+id:
+  A short, unique identifier for this fix.
+
+description:
+  Human-readable explanation of what this fix does.
+
+pattern:
+  A RegExp that matches the EXACT text that should be replaced.
+  IMPORTANT:
+    - Use capturing groups only if you re-insert them in replace().
+    - The match itself is what will be highlighted in the output.
+
+replace:
+  A function(match, ...groups) OR a string.
+  It must return the final replacement string.
+
+highlight:
+  Boolean.
+  If true, the replaced text will be wrapped in a <span class="highlight">.
+
+INPUT / OUTPUT CONTRACT:
+  - Input: plain UTF-8 text
+  - Output: same text with replacements applied in order
+  - No fix should rely on HTML being present in input
+  - Fixes are applied sequentially (earlier fixes affect later ones)
+
+WHEN ADDING A NEW FIX:
+  1. Clearly specify what characters surround the match
+  2. Specify exact output characters (e.g. NBSP vs space)
+  3. Add test examples (input → output) for validation
+====================================================================
+*/
+
+const fixes = [
+	{
+		id: "multiplier-currency-nbsp",
+		description: `
+		Ensure NBSP between German number multipliers and whitelisted currencies.
+
+		Examples:
+		- 5 Mrd.USD → 5 Mrd. USD
+		- 3 Mio. EUR → 3 Mio. EUR
+		- 1 TsdCHF → 1 Tsd CHF
+		`,
+		pattern: new RegExp(
+			`\\b(${NUMBER_MULTIPLIERS
+				.map(x => x.replace('.', '\\.'))
+				.join("|")})\\s*(${UNITS_AND_CURRENCIES.join("|")})\\b`,
+			"g"
+		),
+		replace: (match, multiplier, currency) => {
+			return multiplier + "\u00A0" + currency;
+		},
+		highlightClass: "highlight-blue"
+	},
+  {
+		id: "dash-between-alnum",
+		pattern: /(?<!\d)([0-9A-Za-zÄÖÜäöüß])\s*[—–]\s*([0-9A-Za-zÄÖÜäöüß,])(?!\d)/g,
+		returnsHTML: true,
+		replace: (match, left, right) => {
+			return escapeHTML(left) +
+				highlight("\u00A0– ", "highlight-yellow") +
+				escapeHTML(right);
+		}
+	},
+	{
+		id: "space-endash-space",
+		pattern: /(\S) – (\S)/g,
+		returnsHTML: true,
+		replace: (match, left, right) => {
+			return escapeHTML(left) +
+				highlight("\u00A0– ", "highlight-yellow") +
+				escapeHTML(right);
+		}
+	},
+
+	{
+		id: "number-unit-nbsp",
+		description: `
+	Ensure a no-break space (NBSP) between numbers and WHITELISTED units/currencies only.
+
+	Examples:
+	- 2,99 €    → 2,99 €
+	- 200.00€   → 200.00 €
+	- 200USD    → 200 USD
+	- 9 USD     → 9 USD
+	- 9MB       → 9 MB
+	- 9 MB      → 9 MB
+
+	Non-examples (UNCHANGED):
+	- 2.0 mit
+	- 2.0 zeigt
+	- 5 mal
+	- 3 und
+	`,
+		pattern: buildUnitRegex(UNITS_AND_CURRENCIES),
+		replace: (match, number, unit) => {
+			return number + "\u00A0" + unit;
+		},
+		highlightClass: "highlight-blue"
+	},
+	{
+		id: "em-dash-to-en-dash",
+		description: "Replace any remaining EM dashes with EN dashes",
+		pattern: /—/g,
+		returnsHTML: true,
+		replace: () => {
+			return highlight("–", "highlight-orange");
+		}
+	},
+	{
+		id: "z-b-nbsp",
+		description: "Normalize z.B. / z. B. to z.\u00A0B.",
+		pattern: /\bz\.\s*B\./g,
+		replace: "z.\u00A0B.",
+		highlightClass: "highlight-blue"
+	}
+];
+
+const inputEl = document.getElementById("input");
+const outputEl = document.getElementById("output");
+
+inputEl.addEventListener("input", processText);
+
+function processText() {
+  let text = inputEl.value;
+  let highlightedHTML = escapeHTML(text);
+
+  fixes.forEach(fix => {
+    highlightedHTML = applyFix(highlightedHTML, fix);
+    text = applyFixPlain(text, fix);
+  });
+
+  outputEl.innerHTML = highlightedHTML;
+}
+
+function applyFix(htmlText, fix) {
+  return htmlText.replace(fix.pattern, (...args) => {
+    const replacement = typeof fix.replace === "function"
+      ? fix.replace(...args)
+      : fix.replace;
+
+    if (fix.returnsHTML) {
+      return replacement; // already safe HTML
+    }
+
+    if (!fix.highlightClass) {
+      return escapeHTML(replacement);
+    }
+
+    return '<span class="' + fix.highlightClass + '">' +
+           escapeHTML(replacement) +
+           '</span>';
+  });
+}
+
+
+function applyFixPlain(text, fix) {
+  return text.replace(fix.pattern, fix.replace);
+}
+
+function escapeHTML(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function copyPlain() {
+  const text = outputEl.textContent;
+  navigator.clipboard.writeText(text);
+}
+
+function copyDoubleNewlines() {
+  const text = outputEl.textContent.replace(/\n/g, "\n\n");
+  navigator.clipboard.writeText(text);
+}
+</script>
+
+</body>
+</html>

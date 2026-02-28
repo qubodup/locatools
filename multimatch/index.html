@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Word Scanner</title>
+<style>
+body { 
+  margin:0; 
+  font-family:sans-serif; 
+  height:100vh; 
+  display:flex; 
+  flex-direction:column; 
+}
+
+#words { 
+  flex:0 0 20%; 
+}
+
+#stats {
+  flex:0 0 auto;
+}
+
+.container { 
+  flex:1; 
+  display:flex; 
+  min-height:0;   /* important */
+}
+
+#text, #output {
+  flex:1;
+  overflow:auto;
+}
+#output { white-space: pre-wrap; }
+.yellow {
+  background: yellow;
+  cursor: pointer;
+  position: relative;
+}
+
+.yellow:hover::after {
+  content: "➕ whitelist";
+  position: absolute;
+  top: -1.2em;
+  left: 0;
+  background: #eee;
+  border: 1px solid #000;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+.orange { background: orange; }
+.container { flex:1; display:flex; }
+</style>
+</head>
+<body>
+
+<div style="display:flex;height:20%;">
+  <textarea id="words" style="flex:1" placeholder="Search words (one per line)"></textarea>
+  <textarea id="whitelist" style="flex:1" placeholder="Whitelist (no substring)"></textarea>
+</div>
+
+<div id="stats">
+Matched words: <span id="matchedCount">0</span> |
+Whole matches: <span id="wholeCount">0</span> |
+Partial matches: <span id="partialCount">0</span>
+</div>
+
+<div class="container">
+<textarea id="text" placeholder="Text to scan"></textarea>
+<div id="output"></div>
+</div>
+
+<script>
+const wordsEl = document.getElementById("words");
+const whitelistEl = document.getElementById("whitelist");
+const textEl = document.getElementById("text");
+const outputEl = document.getElementById("output");
+
+function escapeReg(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
+
+// restore
+wordsEl.value = localStorage.getItem("searchWords") || "";
+whitelistEl.value = localStorage.getItem("whitelistWords") || "";
+
+function save(){
+  localStorage.setItem("searchWords", wordsEl.value);
+  localStorage.setItem("whitelistWords", whitelistEl.value);
+}
+
+// extract full token around index
+function getHostWord(text, index){
+  let start = index, end = index;
+  while (start > 0 && /[\p{L}\p{N}_]/u.test(text[start-1])) start--;
+  while (end < text.length && /[\p{L}\p{N}_]/u.test(text[end])) end++;
+  return text.slice(start, end);
+}
+
+function update(){
+  save();
+
+  const words = wordsEl.value.split("\n").map(w=>w.trim()).filter(Boolean);
+  const whitelist = new Set(
+    whitelistEl.value.split("\n").map(w=>w.trim().toLowerCase()).filter(Boolean)
+  );
+
+  const text = textEl.value;
+  if (!words.length || !text) { outputEl.textContent = text; return; }
+
+  const wordRe = words.map(escapeReg).join("|");
+
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}_])(${wordRe})(?![\\p{L}\\p{N}_])|(${wordRe})`,
+    "giu"
+  );
+
+  let matchedWords = new Set();
+  let whole = 0, partial = 0;
+
+  const html = text.replace(re, (m, w1, w2, offset, str) => {
+    const lower = m.toLowerCase();
+    matchedWords.add(lower);
+
+    if (w1) {
+      whole++;
+      return `<span class="orange">${m}</span>`;
+    } else {
+      const host = getHostWord(str, offset).toLowerCase();
+      if (whitelist.has(host)) return m;
+      partial++;
+      return `<span class="yellow" data-host="${host}">${m}</span>`;
+    }
+  });
+
+  outputEl.innerHTML = html;
+  matchedCount.textContent = matchedWords.size;
+  wholeCount.textContent = whole;
+  partialCount.textContent = partial;
+}
+
+// click yellow → whitelist HOST word
+outputEl.addEventListener("click", e => {
+  if (!e.target.classList.contains("yellow")) return;
+  const host = e.target.dataset.host;
+  whitelistEl.value += (whitelistEl.value ? "\n" : "") + host;
+  update();
+});
+
+wordsEl.addEventListener("input", update);
+whitelistEl.addEventListener("input", update);
+textEl.addEventListener("input", update);
+
+update();
+</script>
+
+
+
+</body>
+</html>

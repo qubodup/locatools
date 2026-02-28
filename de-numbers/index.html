@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>USD → German Format Converter</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #f5f5f5;
+    padding: 20px;
+  }
+  h1 {
+    margin-bottom: 10px;
+  }
+  .container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  textarea {
+    width: 100%;
+    height: 300px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    resize: vertical;
+  }
+  .buttons {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+  }
+  button {
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .note {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h1>USD → German Format Converter</h1>
+
+<div class="container">
+  <div>
+    <strong>Input</strong>
+    <textarea id="input"></textarea>
+  </div>
+  <div>
+    <strong>Output</strong>
+    <textarea id="output" readonly></textarea>
+  </div>
+</div>
+
+<div class="buttons">
+  <button onclick="convert()">Convert</button>
+  <button onclick="copyOutput()">Copy output</button>
+</div>
+
+<div class="note">
+  Uses protected space (NBSP) before <code>USD</code>. Clipboard-safe.
+</div>
+
+<script>
+const NBSP = "\u00A0";
+
+function formatNumber(num) {
+  return num.toLocaleString("de-DE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3
+  });
+}
+
+function convertMatch(match) {
+  let clean = match
+    .replace(/[“”"]/g, "")
+    .replace(/[>~]/g, "")
+    .trim();
+
+  // Ranges
+  if (clean.includes("–")) {
+    const parts = clean.split("–").map(convertMatch);
+    return parts.join("–");
+  }
+
+  const m = clean.match(/\$([\d.,]+)\s*(B|M|K)?/i);
+  if (!m) return match;
+
+  let value = parseFloat(m[1].replace(/,/g, ""));
+  const unit = m[2]?.toUpperCase();
+  let suffix = "";
+
+  if (unit === "B") {
+    suffix = " Mrd.";
+  } else if (unit === "M") {
+    suffix = " Mio.";
+  } else if (unit === "K") {
+    value = value * 1000;
+  }
+
+  return `${formatNumber(value)}${suffix}${NBSP}USD`;
+}
+
+function fahrenheitToCelsius(f) {
+  return (f - 32) * 5 / 9;
+}
+
+function formatCelsius(value) {
+  return value.toLocaleString("de-DE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1
+  });
+}
+
+function convertFahrenheit(match, num) {
+  const normalized = num.replace("−", "-").replace(",", ".");
+  const f = parseFloat(normalized);
+  if (isNaN(f)) return match;
+
+  const c = fahrenheitToCelsius(f);
+  return `${formatCelsius(c)}${NBSP}°C`;
+}
+
+function convert() {
+  const input = document.getElementById("input").value;
+
+  let output = input.replace(
+    /\$[\d.,]+\s*(?:B|M|K)?(?:\s*–\s*\$[\d.,]+\s*(?:B|M|K)?)?/gi,
+    convertMatch
+  );
+
+  // °F → °C
+  // accepts: 5°F, 5 °F, 5 °F, −22°F, −22 °F, −22 °F
+  output = output.replace(
+		/([−-]?\d+(?:[.,]\d+)?)[\s\u00A0]*°F/gi,
+		convertFahrenheit
+	);
+
+  document.getElementById("output").value = output;
+}
+
+
+function copyOutput() {
+  const out = document.getElementById("output");
+  out.select();
+  out.setSelectionRange(0, out.value.length);
+  navigator.clipboard.writeText(out.value);
+}
+</script>
+
+</body>
+</html>

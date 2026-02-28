@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>German Date Extractor (Space Types)</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  textarea { width: 100%; height: 150px; white-space: pre-wrap; }
+  button { margin: 10px 0; }
+  .container { display: flex; gap: 30px; }
+  ul { padding-left: 20px; }
+  h3 { margin-bottom: 5px; }
+</style>
+</head>
+<body>
+
+<h2>Extract German Dates by Space Type</h2>
+
+<textarea id="input" placeholder="Paste text here (NBSP allowed)">
+Heute ist 3.&nbsp;März&nbsp;2024.
+Am 12 Dezember 2021 wurde unterschrieben.
+Auch gültig: 7. Juli 1999
+</textarea>
+
+<button onclick="extractDates()">Extract Dates</button>
+
+<div class="container">
+  <div>
+    <h3>Dates with ONLY non-breaking spaces</h3>
+    <ul id="onlyNbsp"></ul>
+  </div>
+
+  <div>
+    <h3>Dates with MIXED spaces</h3>
+    <ul id="mixedSpaces"></ul>
+  </div>
+
+  <div>
+    <h3>Dates with ONLY normal spaces</h3>
+    <ul id="onlyNormal"></ul>
+  </div>
+</div>
+
+<script>
+function extractDates() {
+  const text = document.getElementById("input").value;
+
+  const regex = /\b([0-9]{1,2})\.?[\s\u00A0]*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)[\s\u00A0]+([0-9]{4})\b/gi;
+
+  const matches = [...text.matchAll(regex)].map(m => m[0]);
+
+  const onlyNbsp = document.getElementById("onlyNbsp");
+  const mixedSpaces = document.getElementById("mixedSpaces");
+  const onlyNormal = document.getElementById("onlyNormal");
+
+  onlyNbsp.innerHTML = "";
+  mixedSpaces.innerHTML = "";
+  onlyNormal.innerHTML = "";
+
+  matches.forEach(date => {
+    const hasNbsp = /\u00A0/.test(date);
+    const hasNormalSpace = / /.test(date);
+
+    const li = document.createElement("li");
+    li.textContent = date;
+
+    if (hasNbsp && hasNormalSpace) {
+      mixedSpaces.appendChild(li);
+    } else if (hasNbsp) {
+      onlyNbsp.appendChild(li);
+    } else {
+      onlyNormal.appendChild(li);
+    }
+  });
+
+  if (!onlyNbsp.children.length) onlyNbsp.innerHTML = "<li>None</li>";
+  if (!mixedSpaces.children.length) mixedSpaces.innerHTML = "<li>None</li>";
+  if (!onlyNormal.children.length) onlyNormal.innerHTML = "<li>None</li>";
+}
+</script>
+
+</body>
+</html>

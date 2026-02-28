@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Line Ending Comparator</title>
+<style>
+  body {
+    margin: 0;
+    padding: 10px;
+    font-family: monospace;
+  }
+
+  .container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    height: 95vh;
+  }
+
+  textarea, .output {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    resize: none;
+    overflow: auto;
+    border: 1px solid #ccc;
+  }
+
+  .output-line {
+    padding: 2px 4px;
+    white-space: pre-wrap;
+  }
+
+  .yellow {
+    background: #fff3a0;
+  }
+
+  .grey {
+    background: #e0e0e0;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <textarea id="left" placeholder="Paste LEFT lines here"></textarea>
+  <textarea id="center" placeholder="Paste CENTER lines here"></textarea>
+  <div id="right" class="output"></div>
+</div>
+
+<script>
+const left = document.getElementById("left");
+const center = document.getElementById("center");
+const right = document.getElementById("right");
+
+function endsWithDot(line) {
+  return line.trim().endsWith(".");
+}
+
+function compare() {
+  const leftLines = left.value.split(/\r?\n/);
+  const centerLines = center.value.split(/\r?\n/);
+
+  right.innerHTML = "";
+
+  const max = Math.max(leftLines.length, centerLines.length);
+
+  for (let i = 0; i < max; i++) {
+    const l = leftLines[i] ?? "";
+    const c = centerLines[i] ?? "";
+
+    const lDot = endsWithDot(l);
+    const cDot = endsWithDot(c);
+
+    if (lDot && !cDot) {
+      addLine(c, "yellow");
+    } else if (!lDot && cDot) {
+      addLine(c, "grey");
+    }
+  }
+}
+
+function addLine(text, cls) {
+  const div = document.createElement("div");
+  div.className = `output-line ${cls}`;
+  div.textContent = text;
+  right.appendChild(div);
+}
+
+left.addEventListener("input", compare);
+center.addEventListener("input", compare);
+</script>
+
+</body>
+</html>

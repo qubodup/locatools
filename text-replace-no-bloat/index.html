@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Online Text Replacement Tool no ads no cookies no subscriptions no bloat</title>
+
+<style>
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: system-ui, sans-serif;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+}
+
+input,
+button {
+    font: inherit;
+}
+
+input[type="text"] {
+    padding: 8px 10px;
+}
+
+button {
+    padding: 8px 14px;
+    cursor: pointer;
+}
+
+label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+
+textarea {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    outline: 0;
+    resize: none;
+    padding: 20px;
+    font: inherit;
+    line-height: 1.5;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.toolbar a {
+    display: flex;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
+    padding: 0 4px;
+}
+
+.toolbar a:hover {
+    text-decoration: underline;
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+    <input id="find" type="text" placeholder="find">
+    <input id="replace" type="text" placeholder="replace">
+
+    <label>
+        <input id="ignoreCase" type="checkbox" checked>
+        case insensitive
+    </label>
+
+    <button id="run">Replace</button>
+    <button id="undo">Undo</button>
+
+    <div class="spacer"></div>
+
+    <a href="https://github.com/qubodup/locatools">Source</a>
+    <a href="https://qubodup.github.io/locatools/" id="locatoolsLink">LocaTools</a>
+
+</div>
+
+<textarea id="text"></textarea>
+
+<script>
+const text = document.getElementById("text");
+const find = document.getElementById("find");
+const replace = document.getElementById("replace");
+const ignoreCase = document.getElementById("ignoreCase");
+
+let undoState = null;
+
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+document.getElementById("run").onclick = () => {
+    if (!find.value) return;
+
+    undoState = text.value;
+
+    const flags = ignoreCase.checked ? "gi" : "g";
+    const pattern = new RegExp(escapeRegex(find.value), flags);
+
+    text.value = text.value.replace(pattern, replace.value);
+};
+
+document.getElementById("undo").onclick = () => {
+    if (undoState === null) return;
+
+    const current = text.value;
+    text.value = undoState;
+    undoState = current;
+};
+</script>
+
+</body>
+</html>
